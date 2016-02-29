@@ -1,0 +1,7 @@
+#########################################################################
+# Disprun : R1rho RD Peak/Exp Fitting Program v3
+#  Unfinished version.
+#  Isaac Kimsey
+#
+# External dependencies: numpy, matplotlib, scipy, nmrglue
+#########################################################################
