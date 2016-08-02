@@ -15,7 +15,7 @@ import time, datetime
 # Matpliotlib imports
 from matplotlib.backends.backend_pdf import PdfPages
 # numpy imports
-from numpy import array, log, mean, pi, savetxt
+from numpy import array, asarray, hstack, log, mean, pi, savetxt
 # disprun specific libraries
 import dr3_gensl as gensl
 import dr3_process as prc
@@ -24,7 +24,7 @@ import dr3_plots as dr3plot
 import dr3_mathfuncs as mf
 # Misc imports
 import nmrglue as ng
-
+import pandas as pd
 curDir = os.getcwd()
 argc = len(sys.argv)
 
@@ -37,11 +37,27 @@ def help():
   print "Usage is as follows:"
   print " >dr3.py -genpar [output path for input text file]"
   print " >dr3.py -com [input text file]"
-  print " >dr3.py -fit [input text file]"
+  print " >dr3.py -[fit/fit0/fitsl] [input text file]"
   print " >dr3.py -gensl [ouput name for .csv file]"
   print " >dr3.py -clean [folders to be cleaned]"
   print " >dr3.py -swe [R1rho csv] [Error csv] [recombined csv name]"
   print " >dr3.py -cleanvd [input text file]"
+
+  print '''
+Disprun v3.06
+Usage is as follows:
+ >dr3.py -genpar [output path for input text file]
+ >dr3.py -com [input text file]
+ >dr3.py -[fit/fit0/fitsl] [input text file]
+  - fit : fits decaying intensities to monoexponential and props. err
+  - fitsl : takes in SLcalibration experiment, fits ints to dec sine func
+            outputs fitted cnst12 value in extracted parameters file.
+  - fit0 : Takes last delay point and calculates R1p assuming perfect monoexp
+ >dr3.py -gensl [ouput name for .csv file]
+ >dr3.py -clean [folders to be cleaned]
+ >dr3.py -swe [R1rho csv] [Error csv] [recombined csv name]
+ >dr3.py -cleanvd [input text file]
+'''
 
 def removeFile(filePath):
   subprocess.call(["rm", filePath])
@@ -74,6 +90,7 @@ if argc == 3 and sys.argv[1].lower() == "-gensl":
   filename = sys.argv[2]
   slpath = os.path.join(curDir, filename)
   gensl.menu(filename, slpath)
+
 ####################################
 #### Generate an output text file and
 #### put in to specified directory
@@ -86,7 +103,7 @@ elif sys.argv[1].lower() == "-genpar" and os.path.isdir(os.path.join(curDir, sys
 
   ## Try to grab folder ranges to use in the input text file
   # Grab non-numeric folders > 800
-  paths = [x for x in os.listdir(dirpath) if IsInt(x) == True and int(x) > 100]
+  paths = [x for x in os.listdir(dirpath) if IsInt(x) == True and int(x) >= 300]
   ranges = []
   # Sort
   paths = sorted([int(x) for x in paths])
@@ -97,7 +114,10 @@ elif sys.argv[1].lower() == "-genpar" and os.path.isdir(os.path.join(curDir, sys
     pval,cval,nval = None,None,None
     if i == 0:
       cval = paths[i]
-      nval = paths[i+1]
+      if len(paths) == 1:
+        nval = cval
+      else:
+        nval = paths[i+1]
     elif i > 0 and i != len(paths) - 1:
       pval = paths[i-1]
       cval = paths[i]
@@ -158,10 +178,11 @@ Read No
 #### Fit Peak Ints and Decay Curves ####
 ####################################
 elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
+      or sys.argv[1].lower() == "-fit0"
       and os.path.isfile(os.path.join(curDir, sys.argv[2]))):
   # Error handling
   errBool, missStr = False, ""
-
+  fit_arg = sys.argv[1].lower()
   # Path to input text file
   inpPath = os.path.join(curDir, sys.argv[2])
 
@@ -271,9 +292,14 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
 
     # dly, ints, noiserel = nDIN[:,0], nDIN[:,1], nDIN[:,2]
     dly, ints, noiserel = rDIN[:,0], rDIN[:,1], rDIN[:,2]
+    if fit_arg == "-fit0":
+      dly = dly[:-1]
+      ints = ints[:-1]
+      noiserel = noiserel[:-1]
     # Put delays and ints to a dict for later export
     dlyints[fn] = array(array([rDIN[:,0], rDIN[:,1], rDIN[:,2],
                                      nDIN[:,1], nDIN[:,2]]).T)
+
 
     # Grab some mag and delay values
     Tmax = dly.max()
@@ -292,7 +318,7 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
     # N-number of Prexponential factors and R1rhos
     FitVals_MC, FitVals_BS = None, None
 
-    if sys.argv[1].lower() == "-fit":
+    if fit_arg == "-fit" or fit_arg == "-fit0":
       # Initial guess for fit
       R1p_t = -1./Tmax*log(magMin/magMax)
       p0 = array([max(ints), R1p_t])
@@ -393,10 +419,10 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
   FILE2 = open(outR1p_mc, "wb")
   FILE3 = open(outR1p_bs, "wb")
   FILE4 = open(outR1p_mathematica, "wb")
-  FILE.write("Folder Number, Corr. Offset (Hz), SLP (Hz), R1p_STD, R1p_err_STD, red. chi-sq\n")
-  FILE2.write("Folder Number, Corr. Offset (Hz), SLP (Hz), R1p_MC, R1p_err_MC, red. chi-sq\n")
-  FILE3.write("Folder Number, Corr. Offset (Hz), SLP (Hz), R1p_BS, R1p_err_BS, red. chi-sq\n")
-  FILE4.write("Folder Number, Corr. Offset (Hz), SLP (Hz), R1p_MC, R1p_err_STD, red. chi-sq\n")
+  FILE.write("Folder, Offset, SLP, R1p_STD, R1p_err_STD, red_chi_sq\n")
+  FILE2.write("Folder, Offset, SLP, R1p_MC, R1p_err_MC, red_chi_sq\n")
+  FILE3.write("Folder, Offset, SLP, R1p_BS, R1p_err_BS, red_chi_sq\n")
+  FILE4.write("Folder, Offset, SLP, R1p_MC, R1p_err_STD, red_chi_sq\n")
   for fn in dataFolders:
     FILE.write(",".join([str(x) for x in r1p_std[fn]]) + "\n")
     FILE2.write(",".join([str(x) for x in r1p_mc[fn]]) + "\n")
@@ -408,15 +434,29 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
   FILE3.close()
   FILE4.close()
 
-  # Write out the delays and intensities
-  FILE = open(outDlyInts, "wb")
-  FILE.write("Folder Number, Delay (sec), Raw Intensity, Raw Noise, Normalized Intensity, Normalized Noise\n")
+  # # Write out the delays and intensities
+  # FILE = open(outDlyInts, "wb")
+  # FILE.write("Folder Number, Delay (sec), Raw Intensity, Raw Noise, Normalized Intensity, Normalized Noise\n")
+  # for fn in dataFolders:
+  #   for din in [x for x in dlyints[fn]]:
+  #     FILE.write(str(fn) + ",")
+  #     FILE.write(",".join([str(y) for y in din]) + "\n")
+  # FILE.close()
+  mdf = pd.DataFrame()
   for fn in dataFolders:
-    for din in [x for x in dlyints[fn]]:
-      FILE.write(str(fn) + ",")
-      FILE.write(",".join([str(y) for y in din]) + "\n")
-  FILE.close()
-  
+    # Get numpy array of corrected offset and slp to match number of dlys
+    tsloff = array([[fn, slpoffs[fn]['cnst28i'], slpoffs[fn]['cnst12']]
+                     for _ in range(dlyints[fn].shape[0])])
+    # Stack array of offsets/slps to array of dlys/intensities
+    intsout = hstack((tsloff, dlyints[fn]))
+    # Column headers
+    intsout_h = ["Folder", "Offset", "SLP", "Dly",
+                 "Int", "Int_err", "nInt", "nInt_err"]
+    # append dataframe of this array to master dataframe to be written out
+    mdf = mdf.append(pd.DataFrame(intsout, columns=intsout_h))
+  # reset index of dataframe
+  mdf = mdf.reset_index(drop=True)
+  mdf.to_csv(outDlyInts, sep=",", index=False)
   # Make copies of fit files for archive purposes
   subprocess.call(["cp", inpPath, outCPInp])
 
@@ -813,7 +853,26 @@ pldb16 -4
   else:
     print ".csv file or folder does not exists."
 
-
-
+###################################
+#### Generate R1rho folders and setup scripts
+###################################
+elif  (sys.argv[1].lower() == "-ints"
+      and os.path.isfile(os.path.join(curDir, sys.argv[2]))
+      and os.path.isfile(os.path.join(curDir, sys.argv[3]))):
+    pars_dir = os.path.join(curDir, sys.argv[2])
+    ints_dir = os.path.join(curDir, sys.argv[3])
+    p_df = pd.read_csv(pars_dir, sep=",")
+    i_df = pd.read_csv(ints_dir, sep=",")
+    i_df = i_df.rename(columns = {"Folder Number": "FN",
+                                  " Delays (sec)": "dly",
+                                  " Raw Intensity": "ri",
+                                  " Raw Noise": "rn",
+                                  " Normalized Intensity": "ni",
+                                  " Normalized Noise": "nn"})
+    o_df = pd.merge(i_df, p_df, on="FN")
+    o_df.to_csv("test.csv", sep=",")
+    # print p_df['FN']
+    # print i_df['FN']
+    # print i_df.columns
 else: help()
 

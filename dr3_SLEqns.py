@@ -13,7 +13,23 @@ import math
   #  corresponding calibration curve equation.
 def calcPLDB23(HzVal=None, freq=None, nuclei=None, salt=None):
   pldb23 = 1000.0
-  if freq == '700' and nuclei == 'C' and salt == "low":
+  if freq == '700ss' and nuclei == 'N' and salt == "low":
+    # Construct: wtTAR
+    # Temperature: 298K
+    # pH: 6.4
+    # Salt Conc: 25 mM NaCl
+    # Phosphate Conc: 15 mM PO4
+    # Resonance: rU42-N3
+    # Spectrometer: Bruker 700s
+    # Seq type: Sel 15N R1rho
+    # Number of points: 30 x 2
+    # SL Cal Range: 50-3000 Hz
+    # Error in duplicates: No
+    # Date collected: 08-08-2016
+    # Originator: Isaac K
+    pldb23 = (-8.782*math.log(float(HzVal))+52.223)
+
+  elif freq == '700' and nuclei == 'C' and salt == "low":
     # Construct: f.lbl hpTG-GTG
     # Temperature: 298K
     # pH: 5.88

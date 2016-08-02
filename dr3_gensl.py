@@ -271,15 +271,15 @@ def menu(filename, fullpath):
       AltLoop = True
 
       while AltLoop == True:
-        print "Select Spectrometer frequency (600 or 700)"
+        print "Select Spectrometer frequency (600, 700, or 700ss)"
         bf = raw_input(">")
         print ""
 
-        if bf == "600" or bf == "700":
+        if bf == "600" or bf == "700" or bf == "700ss":
           AltLoop = False
 
         else:
-          print "Input spectrometer frequency (600 or 700)."
+          print "Input spectrometer frequency (600, 700, or 700ss)."
 
       AltLoop = True
 
