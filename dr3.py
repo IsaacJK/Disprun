@@ -22,6 +22,7 @@ import dr3_process as prc
 import dr3_errors as err
 import dr3_plots as dr3plot
 import dr3_mathfuncs as mf
+import dr3_SLEqns as SLEqns
 # Misc imports
 import nmrglue as ng
 import pandas as pd
@@ -33,16 +34,6 @@ def makeFolder(pathToFolder):
     os.makedirs(pathToFolder) 
 
 def help():
-  print "Disprun v3.06"
-  print "Usage is as follows:"
-  print " >dr3.py -genpar [output path for input text file]"
-  print " >dr3.py -com [input text file]"
-  print " >dr3.py -[fit/fit0/fitsl] [input text file]"
-  print " >dr3.py -gensl [ouput name for .csv file]"
-  print " >dr3.py -clean [folders to be cleaned]"
-  print " >dr3.py -swe [R1rho csv] [Error csv] [recombined csv name]"
-  print " >dr3.py -cleanvd [input text file]"
-
   print '''
 Disprun v3.06
 Usage is as follows:
@@ -54,9 +45,11 @@ Usage is as follows:
             outputs fitted cnst12 value in extracted parameters file.
   - fit0 : Takes last delay point and calculates R1p assuming perfect monoexp
  >dr3.py -gensl [ouput name for .csv file]
+  - gensl : Opens terminal ui to generate csv of SLPs/Offsets and dB
  >dr3.py -clean [folders to be cleaned]
  >dr3.py -swe [R1rho csv] [Error csv] [recombined csv name]
  >dr3.py -cleanvd [input text file]
+ >dr3.py -gencal 
 '''
 
 def removeFile(filePath):
@@ -434,14 +427,27 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
   FILE3.close()
   FILE4.close()
 
-  # # Write out the delays and intensities
-  # FILE = open(outDlyInts, "wb")
-  # FILE.write("Folder Number, Delay (sec), Raw Intensity, Raw Noise, Normalized Intensity, Normalized Noise\n")
+  # Write out the MC fitted R1rho values and error
+  # FILE = open(outR1p_std, "wb")
+  # FILE2 = open(outR1p_mc, "wb")
+  # FILE3 = open(outR1p_bs, "wb")
+  # FILE4 = open(outR1p_mathematica, "wb")
+  # head_r1p = ["Folder", "Offset", "SLP", "R1p", "R1p_err", "RedChiSq"]
+  # mdf_std = pd.DataFrame()
+  # mdf_mc = mdf_bs = mdf_mm = mdf_std.copy()
+  # print mdf_std, mdf_mc
   # for fn in dataFolders:
-  #   for din in [x for x in dlyints[fn]]:
-  #     FILE.write(str(fn) + ",")
-  #     FILE.write(",".join([str(y) for y in din]) + "\n")
+  #   FILE.write(",".join([str(x) for x in r1p_std[fn]]) + "\n")
+  #   FILE2.write(",".join([str(x) for x in r1p_mc[fn]]) + "\n")
+  #   if sys.argv[1].lower() == "-fit": 
+  #     FILE3.write(",".join([str(x) for x in r1p_bs[fn]]) + "\n")  
+  #   FILE4.write(",".join([str(x) for x in r1p_mathematica[fn]]) + "\n")  
   # FILE.close()
+  # FILE2.close()
+  # FILE3.close()
+  # FILE4.close()
+
+  # Write out the delays and intensities
   mdf = pd.DataFrame()
   for fn in dataFolders:
     # Get numpy array of corrected offset and slp to match number of dlys
@@ -547,22 +553,6 @@ elif (3 <= argc <= 4 and sys.argv[1].lower() == "-cleanvd"
   for p in dataFolders:
     tpath = os.path.join(curDir, p)
     prc.CleanDly(tpath)
-    # # Get path to vdlist in first directory
-    # vdlistpath = os.path.join(tpath, "vdlist")
-
-    # if os.path.isfile(vdlistpath):
-    #   FILE = open(vdlistpath, "rU")
-    #   delays = [x.strip() for x in FILE]
-    #   FILE.close()
-
-    #   if "ms" in delays[0]:
-    #     delays = [str(float(x.replace("ms", ""))/1e3) for x in delays if len(x.replace("ms", "")) > 0]
-    #     FILE = open(vdlistpath, "wb")
-    #     for line in delays:
-    #       FILE.write(line + "\n")
-    #     FILE.close()
-    # else:
-    #   print "Path for %s does not exist." % p
   
 ####################################
 #### Generate SelR1rho.com file ####
@@ -874,5 +864,118 @@ elif  (sys.argv[1].lower() == "-ints"
     # print p_df['FN']
     # print i_df['FN']
     # print i_df.columns
+
+#Reads in a .CSV file and a template Folder
+# .CSV folder should contain:
+# Col1: folder #
+# Col2: Spinlock power, Hz
+# Col3: Nuclei [13C/15N]
+# Col4: Base Freq (600, 700, 700ss)
+# Col5: low or high, low or high salt
+elif (argc == 4 and os.path.isfile(os.path.join(curDir, sys.argv[2]))
+    and sys.argv[1].lower() == "-gencal" 
+    and os.path.isdir(os.path.join(curDir, sys.argv[3]))):
+
+  #Path to the input .CSV file
+  csvpath = os.path.join(curDir, sys.argv[2])
+  #Path to the folder to be used as a template for generating the new folders
+  templatepath = os.path.join(curDir, sys.argv[3])
+  #Store the input CSV data
+  csvdata = []
+  #Store the data to be written out
+  # Will follow the format:
+  #  Col1 folder #
+  #  Col2 SL Hz
+  #  Col3 PLDB23 dB value
+  #  Col4 d31 delay
+  #  Col5 d30 delay
+  #  Col6 Delay Increment
+  #  Col7 vdlist name
+  #  Col8 Nuclei type
+  outrecord = []
+  # List for run commands, ie "re 1401 1" then "zg"
+  outrun = []
+  # List for setpar commands, ie "re 1401 1", then "pldb23 24.06"
+  outsetpar = []
+  #append a header
+  headerstr = ("Folder,SLP(Hz),PLDB23(dB),D31(s),D30(s),IncrDelay(s),vdlist,Nuclei\n")
+  outrecord.append(headerstr)
+  #Folder for vdlist delays
+  vdlistpath = os.path.join(curDir, "Delays")
+  makeFolder(vdlistpath)
+  #Read in the file
+  FILE = open(csvpath, "rU")
+  csvdata = [x.strip().split(",") for x in FILE]
+  FILE.close
+
+  for line in csvdata:
+    if len(line) < 3:
+      print "Too few parameters for line: %s" % (" ".join(line))
+
+  for line in csvdata:
+    #Calculated variables
+    pldb23, d30, d31, dIncr = None, None, None, None
+    #Delays in vdlist
+    delays = []
+    #Name of the vdlist
+    vdlist = None
+    #Read-in variables
+    hzval, outfolder = None, None
+    nuclei, eqnflag = None, None
+    #Temp store str to be appended to record
+    tstr, trun, tsetpar = None, None, None
+
+    # Read in the values from the CSV file
+    outfolder,hzval,nuclei,bf,salt = line[0], int(line[1]), line[2], line[3], line[4]
+    #Copy the template folder to the new folder
+    tcopypath = os.path.join(curDir, outfolder)
+    subprocess.call(["cp", "-R", templatepath, tcopypath])
+    if "C" in nuclei:
+      nuclei = "C"
+    else: nuclei = "N"
+    if len(line) >= 4:
+      eqnflag = line[3]
+    else: eqnflag = "losalt"
+    #Calc approx PL for the SLP in dB
+    pldb23 = SLEqns.calcPLDB23(hzval, bf, nuclei, salt)
+    #Calc delays
+    delays,d30,d31,dIncr = SLEqns.calcDelays(hzval)
+    d30 = float(d30) + (float(d30)*0.1)
+    #Name vdlist
+    vdlist = "%sHz_33dly" % hzval
+    tvdlistpath = os.path.join(vdlistpath, vdlist)
+    FILE = open(tvdlistpath, "wb")
+    for dval in delays:
+      FILE.write(dval + "\n")
+    FILE.close
+    #Record string
+    tstr = ("%s,%s,%s,%s,%s,%s,%s,%s\n"
+      % (outfolder,hzval,pldb23,d31,d30,dIncr,vdlist,nuclei))
+    outrecord.append(tstr)
+    #Run script
+    trun = "\nre %s 1\nzg\n" % outfolder
+    outrun.append(trun)
+    #Setpar script
+    tsetpar = ("\nre %s 1\npldb23 %s\ncnst12 %s\nd31 %s\nd30 %s\nvdlist %s\nnbl 33\n1 td 33\nsetpar\n"
+     % (outfolder,str(pldb23),str(hzval),str(d31),str(d30),vdlist))
+    outsetpar.append(tsetpar)
+
+  
+  FILE = open("SLCal_run", "wb")
+  for fval in outrun:
+    FILE.write(fval)
+  FILE.close
+
+  FILE = open("SLCal_setpar", "wb")
+  for setval in outsetpar:
+    FILE.write(setval)
+  FILE.close
+
+  # Write record of this setup into csv file
+  FILE = open("SLCal_Record.csv", "wb")
+  for line in outrecord:
+    FILE.write(line)
+  FILE.close
+
 else: help()
 

@@ -7,6 +7,7 @@
 #########################################################################
 
 import math
+from numpy import asarray, mean
 
   # Returns a PLDB23 float with 2 decimal places, IE 17.60,
   #  dependening on the Hz value given, calculated from the
@@ -141,6 +142,37 @@ def calcPLDB23(HzVal=None, freq=None, nuclei=None, salt=None):
 
     #Return the calculated power level
   return ('{0:.2f}'.format(round(pldb23, 2)))
+
+  # Takes a Hz value, and generates a set of 33 delays
+  #  in seconds starting from 0 and increasing in increments
+  #  of 1/(HzVal*8) for 33*increment maximum duration.
+  # Ex. For 100 Hz, increment is 0.00125 sec for 33 increments
+  #  starting from zero and going to 0.04 sec.
+  #
+  # Returns a list of delays, d30, d31 and increment delays.
+def calcDelays(HzVal=None):
+  HzVal = float(HzVal)
+  dlyList, dlyList2 = [], []
+  dIncr = round(1. / (HzVal*8), 10)
+  vals = 0.
+    #Start delay list with 0.0 sec delay
+  dlyList.append(0.0)
+    #For the remaining 32 delays, increment by 1/8*HzVal
+  for i in range(0, 32):
+    vals += dIncr
+      #Round to 10 decimal points
+    dlyList.append(round(vals,10))
+  #Extra step to just make sure no scientific notation 
+  # for large decimal places
+  for i in dlyList:
+    dlyList2.append('{0:.10f}'.format(i))
+
+    #Calculate d31 delay in sec
+  dAvg = mean(asarray(dlyList))
+  dIncr = '{0:.10f}'.format(dIncr)
+    #Calculate d30 (IE max delay)
+  dMax = '{0:.10f}'.format(vals)
+  return(dlyList2, dMax, dAvg, dIncr)
 
 ## Old Calibrations Below ##
   # elif freq == '700' and nuclei == 'N' and salt == "low":         
