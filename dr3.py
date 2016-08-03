@@ -49,7 +49,8 @@ Usage is as follows:
  >dr3.py -clean [folders to be cleaned]
  >dr3.py -swe [R1rho csv] [Error csv] [recombined csv name]
  >dr3.py -cleanvd [input text file]
- >dr3.py -gencal 
+ >dr3.py -slcal [input template CSV] [template folder]
+ >dr3.py -gencal [output name]
 '''
 
 def removeFile(filePath):
@@ -293,7 +294,6 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
     dlyints[fn] = array(array([rDIN[:,0], rDIN[:,1], rDIN[:,2],
                                      nDIN[:,1], nDIN[:,2]]).T)
 
-
     # Grab some mag and delay values
     Tmax = dly.max()
     magMin = ints.min()
@@ -407,45 +407,17 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
     FILE.write(",".join([str(x) for x in slpoffs[fn].values()]) + "\n")
   FILE.close()
 
-  # Write out the MC fitted R1rho values and error
-  FILE = open(outR1p_std, "wb")
-  FILE2 = open(outR1p_mc, "wb")
-  FILE3 = open(outR1p_bs, "wb")
-  FILE4 = open(outR1p_mathematica, "wb")
-  FILE.write("Folder, Offset, SLP, R1p_STD, R1p_err_STD, red_chi_sq\n")
-  FILE2.write("Folder, Offset, SLP, R1p_MC, R1p_err_MC, red_chi_sq\n")
-  FILE3.write("Folder, Offset, SLP, R1p_BS, R1p_err_BS, red_chi_sq\n")
-  FILE4.write("Folder, Offset, SLP, R1p_MC, R1p_err_STD, red_chi_sq\n")
-  for fn in dataFolders:
-    FILE.write(",".join([str(x) for x in r1p_std[fn]]) + "\n")
-    FILE2.write(",".join([str(x) for x in r1p_mc[fn]]) + "\n")
-    if sys.argv[1].lower() == "-fit": 
-      FILE3.write(",".join([str(x) for x in r1p_bs[fn]]) + "\n")  
-    FILE4.write(",".join([str(x) for x in r1p_mathematica[fn]]) + "\n")  
-  FILE.close()
-  FILE2.close()
-  FILE3.close()
-  FILE4.close()
-
-  # Write out the MC fitted R1rho values and error
-  # FILE = open(outR1p_std, "wb")
-  # FILE2 = open(outR1p_mc, "wb")
-  # FILE3 = open(outR1p_bs, "wb")
-  # FILE4 = open(outR1p_mathematica, "wb")
-  # head_r1p = ["Folder", "Offset", "SLP", "R1p", "R1p_err", "RedChiSq"]
-  # mdf_std = pd.DataFrame()
-  # mdf_mc = mdf_bs = mdf_mm = mdf_std.copy()
-  # print mdf_std, mdf_mc
-  # for fn in dataFolders:
-  #   FILE.write(",".join([str(x) for x in r1p_std[fn]]) + "\n")
-  #   FILE2.write(",".join([str(x) for x in r1p_mc[fn]]) + "\n")
-  #   if sys.argv[1].lower() == "-fit": 
-  #     FILE3.write(",".join([str(x) for x in r1p_bs[fn]]) + "\n")  
-  #   FILE4.write(",".join([str(x) for x in r1p_mathematica[fn]]) + "\n")  
-  # FILE.close()
-  # FILE2.close()
-  # FILE3.close()
-  # FILE4.close()
+  # Write out the fitted R1rho values and error
+  head_r1p = ["Folder", "Offset", "SLP", "R1p", "R1p_err", "RedChiSq"]
+  fit_type = {outR1p_std: r1p_std, outR1p_mc: r1p_mc, outR1p_bs: r1p_bs,
+              outR1p_mathematica: r1p_mathematica}
+  for ft in fit_type:
+    # Cast fit R1p/err as pandas dataframe
+    mdf = pd.DataFrame()
+    mdf = pd.DataFrame(array([fit_type[ft][x] for x in fit_type[ft]]), columns=head_r1p)
+    mdf = mdf.reset_index(drop=True)
+    # Write out dataframe
+    mdf.to_csv(ft, sep=",", index=False)
 
   # Write out the delays and intensities
   mdf = pd.DataFrame()
@@ -873,7 +845,7 @@ elif  (sys.argv[1].lower() == "-ints"
 # Col4: Base Freq (600, 700, 700ss)
 # Col5: low or high, low or high salt
 elif (argc == 4 and os.path.isfile(os.path.join(curDir, sys.argv[2]))
-    and sys.argv[1].lower() == "-gencal" 
+    and sys.argv[1].lower() == "-slcal" 
     and os.path.isdir(os.path.join(curDir, sys.argv[3]))):
 
   #Path to the input .CSV file
@@ -911,6 +883,9 @@ elif (argc == 4 and os.path.isfile(os.path.join(curDir, sys.argv[2]))
   for line in csvdata:
     if len(line) < 3:
       print "Too few parameters for line: %s" % (" ".join(line))
+  # Crudely check for header line
+  if "Folder" in csvdata[0][0]:
+    del csvdata[0]
 
   for line in csvdata:
     #Calculated variables
@@ -977,5 +952,62 @@ elif (argc == 4 and os.path.isfile(os.path.join(curDir, sys.argv[2]))
     FILE.write(line)
   FILE.close
 
+elif sys.argv[1].lower() == "-gencal":
+  FILE = open("SLCal_Template.csv", "wb")
+  FILE.write("Folder_Number,Spinlock_Hz,13C_15N,600_700_700ss,Salt-Low_High\n")
+  if len(sys.argv) == 3 and "n" in sys.argv[2].lower():
+    # FILE.write("1400,150,13C,700,low\n")
+    FILE.write('''900,50,15N,700,low
+901,100,15N,700,low
+902,150,15N,700,low
+903,200,15N,700,low
+904,250,15N,700,low
+905,300,15N,700,low
+906,350,15N,700,low
+907,400,15N,700,low
+908,450,15N,700,low
+909,500,15N,700,low
+910,600,15N,700,low
+911,700,15N,700,low
+912,800,15N,700,low
+913,900,15N,700,low
+914,1000,15N,700,low
+915,1100,15N,700,low
+916,1200,15N,700,low
+917,1300,15N,700,low
+918,1400,15N,700,low
+919,1500,15N,700,low
+920,1600,15N,700,low
+921,1700,15N,700,low
+922,1800,15N,700,low
+923,1900,15N,700,low
+924,2000,15N,700,low''')
+  else:
+    FILE.write('''1400,50,13C,700,low
+1401,100,13C,700,low
+1402,150,13C,700,low
+1403,200,13C,700,low
+1404,250,13C,700,low
+1405,300,13C,700,low
+1406,400,13C,700,low
+1407,500,13C,700,low
+1408,600,13C,700,low
+1409,700,13C,700,low
+1410,800,13C,700,low
+1411,1000,13C,700,low
+1412,1200,13C,700,low
+1413,1400,13C,700,low
+1414,1600,13C,700,low
+1415,1800,13C,700,low
+1416,2000,13C,700,low
+1417,2200,13C,700,low
+1418,2400,13C,700,low
+1419,2600,13C,700,low
+1420,2800,13C,700,low
+1421,3000,13C,700,low
+1422,3200,13C,700,low
+1423,3400,13C,700,low
+1424,3600,13C,700,low''')    
+  FILE.close()
 else: help()
 
