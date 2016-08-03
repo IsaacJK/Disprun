@@ -26,9 +26,25 @@ def calcPLDB23(HzVal=None, freq=None, nuclei=None, salt=None):
     # Number of points: 30 x 2
     # SL Cal Range: 50-3000 Hz
     # Error in duplicates: No
-    # Date collected: 08-08-2016
-    # Originator: Isaac K
+    # Date collected: 08-02-2016
+    # Originator: Isaac K & Dawn M
     pldb23 = (-8.782*math.log(float(HzVal))+52.223)
+
+  elif freq == '700ss' and nuclei == 'C' and salt == "low":
+    # Construct: wtTAR
+    # Temperature: 298K
+    # pH: 6.4
+    # Salt Conc: 25 mM NaCl
+    # Phosphate Conc: 15 mM PO4
+    # Resonance: rA35-C8
+    # Spectrometer: Bruker 700s
+    # Seq type: Sel 13C R1rho
+    # Number of points: 30 x 2
+    # SL Cal Range: 50-3600 Hz
+    # Error in duplicates: No
+    # Date collected: 08-03-2016
+    # Originator: Isaac K & Dawn M
+    pldb23 = (-8.668*math.log(float(HzVal))+62.743)
 
   elif freq == '700' and nuclei == 'C' and salt == "low":
     # Construct: f.lbl hpTG-GTG
