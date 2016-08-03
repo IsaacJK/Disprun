@@ -407,17 +407,18 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
     FILE.write(",".join([str(x) for x in slpoffs[fn].values()]) + "\n")
   FILE.close()
 
-  # Write out the fitted R1rho values and error
-  head_r1p = ["Folder", "Offset", "SLP", "R1p", "R1p_err", "RedChiSq"]
-  fit_type = {outR1p_std: r1p_std, outR1p_mc: r1p_mc, outR1p_bs: r1p_bs,
-              outR1p_mathematica: r1p_mathematica}
-  for ft in fit_type:
-    # Cast fit R1p/err as pandas dataframe
-    mdf = pd.DataFrame()
-    mdf = pd.DataFrame(array([fit_type[ft][x] for x in fit_type[ft]]), columns=head_r1p)
-    mdf = mdf.reset_index(drop=True)
-    # Write out dataframe
-    mdf.to_csv(ft, sep=",", index=False)
+  if sys.argv[1] != "-fitsl":
+    # Write out the fitted R1rho values and error
+    head_r1p = ["Folder", "Offset", "SLP", "R1p", "R1p_err", "RedChiSq"]
+    fit_type = {outR1p_std: r1p_std, outR1p_mc: r1p_mc, outR1p_bs: r1p_bs,
+                outR1p_mathematica: r1p_mathematica}
+    for ft in fit_type:
+      # Cast fit R1p/err as pandas dataframe
+      mdf = pd.DataFrame()
+      mdf = pd.DataFrame(array([fit_type[ft][x] for x in fit_type[ft]]), columns=head_r1p)
+      mdf = mdf.reset_index(drop=True)
+      # Write out dataframe
+      mdf.to_csv(ft, sep=",", index=False)
 
   # Write out the delays and intensities
   mdf = pd.DataFrame()
