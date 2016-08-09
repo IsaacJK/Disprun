@@ -97,7 +97,7 @@ elif sys.argv[1].lower() == "-genpar" and os.path.isdir(os.path.join(curDir, sys
 
   ## Try to grab folder ranges to use in the input text file
   # Grab non-numeric folders > 800
-  paths = [x for x in os.listdir(dirpath) if IsInt(x) == True and int(x) >= 300]
+  paths = [x for x in os.listdir(dirpath) if IsInt(x) == True and int(x) >= 100]
   ranges = []
   # Sort
   paths = sorted([int(x) for x in paths])
@@ -429,7 +429,7 @@ elif (sys.argv[1].lower() == "-fit" or sys.argv[1].lower() == "-fitsl"
     # Stack array of offsets/slps to array of dlys/intensities
     intsout = hstack((tsloff, dlyints[fn]))
     # Column headers
-    intsout_h = ["Folder", "Offset", "SLP", "Dly",
+    intsout_h = ["Index", "Offset", "SLP", "Dly",
                  "Int", "Int_err", "nInt", "nInt_err"]
     # append dataframe of this array to master dataframe to be written out
     mdf = mdf.append(pd.DataFrame(intsout, columns=intsout_h))
